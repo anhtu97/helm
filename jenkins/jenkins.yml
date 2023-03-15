@@ -1,0 +1,78 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: jenkins-deployment
+  namespace: dev
+spec:
+  selector:
+    matchLabels:
+      app: "jenkins"
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: "jenkins"
+    spec:
+      serviceAccountName: jenkins-admin
+      securityContext:
+        fsGroup: 1000 
+        runAsUser: 1000
+      containers:
+      - env:
+        - name: JENKINS_HOST_HOME
+          value: /data/jenkins
+        - name: JENKINS_OPTS
+          value: "--prefix=/jenkins"
+        image: jenkins/jenkins:lts
+        volumeMounts:
+          - name: jenkins-storage
+            mountPath: /var/jenkins_home
+        imagePullPolicy: Always
+        name: "jenkins"
+        ports:
+        - name: httpport
+          containerPort: 8080
+        - name: jnlpport
+          containerPort: 50000
+      volumes:
+        - name: jenkins-storage
+          persistentVolumeClaim:
+            claimName: jenkins-data
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: jenkins-service
+  namespace: dev
+  labels:
+    app: servicelabel
+spec:
+  type: NodePort
+  ports:
+    - name: httpport
+      port: 8080
+    - name: jnlpport
+      port: 50000
+      targetPort: 50000
+  selector:
+    app: "jenkins"
+
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: jenkins-ingress
+  namespace: dev
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: tools.labdevops.one
+      http:
+        paths:
+          - pathType: Prefix
+            backend:
+              service:
+                name: jenkins-service
+                port:
+                  number: 8080
+            path: /jenkins

@@ -1,0 +1,25 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: registry-ingress
+  annotations:
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    cert-manager.io/issuer: "letsencrypt-prod"
+    nginx.ingress.kubernetes.io/proxy-body-size: 10000m
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: labdevops.one
+      http:
+        paths: 
+          - pathType: ImplementationSpecific
+            backend:
+              service:
+                name: grafana
+                port:
+                  number: 80
+            path: /grafana
+  tls:
+    - hosts:
+      - labdevops.one
+      secretName: root-tls

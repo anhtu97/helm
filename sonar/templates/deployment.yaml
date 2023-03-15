@@ -1,0 +1,70 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "sonar.fullname" . }}
+  labels:
+{{ include "sonar.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ include "sonar.name" . }}
+      app.kubernetes.io/instance: {{ .Release.Name }}
+  template:
+    metadata:
+      annotations:
+        rollme: {{ randAlphaNum 5 | quote }}
+      labels:
+        app.kubernetes.io/name: {{ include "sonar.name" . }}
+        app.kubernetes.io/instance: {{ .Release.Name }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        fsGroup: 1000 
+        runAsUser: 1000
+      containers:
+        - name: {{ .Chart.Name }}
+          image: "{{ .Values.image.sonarqube.repository }}:{{ .Values.image.sonarqube.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.image.sonarqube.pullPolicy }}
+          args:
+          - -Dsonar.web.context=/sonar
+          - -Dsonar.es.bootstrap.checks.disable=true
+          ports:
+            - name: http
+              containerPort: 9000
+              protocol: TCP
+{{include "sonar.liveness_readiness_probe" (dict "port" 9000 "basePath" "/sonar/api/system/status") | indent 10}}
+          env:
+            - name: SONAR_JDBC_USERNAME
+              value: "{{ default "" .Values.env.sonarqube.SONAR_JDBC_USERNAME}}"
+            - name: SONAR_JDBC_PASSWORD
+              value: "{{ default "" .Values.env.sonarqube.SONAR_JDBC_PASSWORD}}"
+            - name: SONAR_JDBC_URL
+              value: "{{ default "" .Values.env.sonarqube.SONAR_JDBC_URL}}"
+            - name: SONAR_PATH_DATA
+              value: "{{ default "" .Values.env.sonarqube.SONAR_PATH_DATA}}"
+          volumeMounts:
+          {{- if .Values.volumeData.enabled }}
+            {{ toYaml .Values.volumeData.volumeMounts | nindent 10 }}
+          {{- end }}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      volumes:
+      {{- if .Values.volumeData.enabled -}}
+        {{- toYaml .Values.volumeData.volumes | nindent 6}}
+      {{- end -}}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
